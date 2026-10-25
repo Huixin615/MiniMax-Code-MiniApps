@@ -1,35 +1,35 @@
 # Agent Flow (`agent-flow`)
 
-A read-only Mini App for inspecting **native `task` sub-agents** in local MiniMax Code conversations. Open it while working normally: it shows when a parent Agent delegated work, the child session and its tool activity, the child's final reply, and whether a matching result appeared in the parent conversation. It does not launch or control Agents.
+Agent Flow shows a timeline of native `task` calls and sub-agent lifecycle events from a file that **this plugin's Hooks create**. The user works in ordinary MiniMax Code chats. The Mini App reads a file only after the user selects it; it does not discover or open Host runtime databases or session history.
 
-The timeline uses persisted task times and reports whether tasks delegated in one turn actually overlapped, plus whether each result can be matched in the current parent history. Two tool calls in one parent message are not assumed to have run in parallel. A task marked “delivered” is not treated as a verified parent-history match; compaction or an unreadable history can leave that match unverified. A match does not prove the parent understood or used the result.
+The timeline shows observed `PreToolUse` → `PostToolUse` intervals, whether a tool result field was present, and `SubagentStart` → `SubagentStop` intervals. It compares completed task-call intervals for overlap. A tool result does not prove that the parent Agent adopted it. A child is linked only when the structured `task` result names the same child session ID as its lifecycle events, or a Hook explicitly supplies a parent session ID. The selected-session view excludes unrelated and unlinked child events; the import file itself is unchanged.
 
 ## Install and use
 
-Requires MiniMax Code 3.1.4 or later.
+Requires MiniMax Code 3.1.4 or later and `node` available on the Hook command's `PATH`.
 
-Copy this whole directory, including `.minimax-plugin/`, to `~/.minimax/plugins/agent-flow/`. Restart MiniMax Code, then ask it to “Open Agent Flow” or “打开 Agent 协作透视”. The Mini App tab belongs to the conversation where it was opened; the page can still inspect earlier conversations through its picker. It follows the most recently updated local conversation as an **inference**, including conversations with zero tasks, because the Host does not expose the current chat ID to this Mini App. Use the picker to hold a specific conversation, or choose “Follow latest” to resume automatic selection. It refreshes task data every three seconds and the conversation list every fifteen seconds while open; it stops when closed.
+Copy this directory, including `.minimax-plugin/` and `hooks/`, to the local MiniMax Code plugin directory as `agent-flow`, then restart MiniMax Code. Work normally and invoke native `task` sub-agents. Open “Agent 协作透视” and select `agent-flow-events.jsonl` from this plugin's Hook data directory. Select rotated `agent-flow-events-*.jsonl` files together if needed.
 
-The detail panel shows the `task` instruction, the child Agent's final reply, and tool names. These are recorded statements and actions, not proof that an advertised code change is correct. Previous messages removed from the active history by compaction may no longer be available in the detail panel; the persisted task and parent-child relation remain visible. The session picker starts with 40 entries and offers “Load more” when needed.
+On the tested macOS desktop layout, Finder's **Go to Folder** can navigate to `~/.minimax/v2/plugin-data/hooks/agent-flow/`. This is a **manual file-picker hint**, not a path used by the plugin's code or a promised stable Host layout. If the directory is empty, check that the plugin is enabled, a new native task has run since installation, and `node` is available to the desktop application's Hook process.
 
-This version covers native `task` sub-agents only. MiniMax Bot groups, MoMo-managed tasks, cloud sessions, and arbitrary plugin-owned Agent sessions are outside its scope.
+Choose the file again to see newly appended events. The page keeps imported data only in memory and does not poll the file. Records from before the Hooks were installed cannot be reconstructed. Session identifiers are SHA-256 digests; the picker lists sessions with observed `task` calls, sorted by their latest event with full local dates and times. Choose a session or click “查看最近记录” to select the newest **imported** task session in one step. This selection is an inference and may not be the chat containing the Mini App; the page never binds it automatically to the current chat. Only children explicitly associated with the chosen session appear in its view.
 
 ## Tested environment
 
-- MiniMax Code 3.1.4 on macOS: read-only reconstruction verified against one real parent conversation with two foreground `explore` children and matching parent tool results. The plugin appears in the installed plugin list, and the user confirmed that the Mini App page displays both tasks.
-- Node.js 24.21.0: synthetic tests cover old sessions, mismatched paths, missing parent results, and nested failed background tasks; the repository `npm run check` passes.
-- Windows paths are implemented with Node's cross-platform path utilities but have not been tested on Windows.
+- MiniMax Code 3.1.4 on macOS: after installation and restart, a new Work chat produced two `task` calls, two tool returns, and two complete sub-agent lifecycles. The user imported the plugin-generated file and confirmed that both calls matched their respective children by exact hashed session ID. The two child running intervals overlapped. Older records created before structured child ID capture remain unlinked.
+- Node.js 24.21.0 for the Hook recorder and synthetic tests. Windows has not been tested.
 
 ## Data & access
 
-- Reads `~/.minimax/v2/sqlite/runtime-state.sqlite` with `node:sqlite` in read-only mode, plus selected session `messages.jsonl` files under `~/.minimax/v2/sessions`. It checks that a history directory encodes the selected session ID, rejects symlinked history paths, and caches unchanged files while open. If `MAVIS_HOME` is set, that directory replaces `~/.minimax`.
-- The Mini App Host does not provide a supported API to observe other conversations. These paths and schemas are **internal, undocumented layouts** observed in MiniMax Code 3.1.4; a client update may break them. A missing or incompatible store produces an error, not guessed relationships.
-- Does not write Host files, plugin data, or browser storage. No outbound network requests, spawned processes, Agent turns, MCP endpoints, or background monitoring after the page closes.
-- The browser receives only selected conversation and task details from the local Node process. Nothing is uploaded. The page renders stored text as text, never as HTML.
+- The `SessionStart`, `PreToolUse(task)`, `PostToolUse(task)`, `SubagentStart`, and `SubagentStop` Hooks receive event JSON from MiniMax Code on stdin. Each Hook invocation runs `node "${PLUGIN_ROOT}/hooks/record.mjs"`. These invocations can occur while the Mini App page is closed.
+- The recorder writes `agent-flow-events.jsonl` under the runtime-provided `PLUGIN_DATA` directory, rotating at 8 MiB. It keeps timestamps, SHA-256 digests of opaque IDs (including a structured child session ID when present in a `task` result), agent type, a task description/title/name truncated to 160 characters, and whether the tool response field exists. **That short task title may contain user-supplied text, including a path or sensitive value.** It does not separately collect workspace paths or credentials and does not store the full task prompt, tool result body, or child final reply. The records remain on the user's machine until the user deletes them.
+- The Mini App's Node process serves only its own HTML, CSS, and JavaScript. The browser parses only files explicitly selected by the user, in memory, and does not upload or persist the content. No Mini App Agent turns, MCP endpoints, outbound network requests, or Host runtime/session-file access. Hook processes are the only subprocesses; no additional process is started by the Mini App.
+- The Mini App declares no Agent access. It cannot identify the chat containing the page and does not list or read Host sessions or run Agent turns. The user chooses a recorded session explicitly; choosing one does not claim it is the currently open chat.
+- The UI renders imported strings as text. A mismatched, incomplete, or oversized file is rejected rather than merged into a guessed history.
 
 ## Development
 
-Run `node --test plugins/huixin615/agent-flow/tests/*.test.mjs` and `npm run check` from the repository root. Synthetic tests create temporary stores and contain no real conversation content.
+Run `node --test plugins/huixin615/agent-flow/tests/*.test.mjs` and `npm run check` at the repository root. Tests use only synthetic events and a temporary plugin data directory.
 
 ## License
 

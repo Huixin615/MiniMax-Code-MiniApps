@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "mcode": {
     "schemaVersion": 2,
     "miniApp": "./miniapp/miniapp.json"

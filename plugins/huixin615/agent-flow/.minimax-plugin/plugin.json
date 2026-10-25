@@ -3,12 +3,13 @@
   "name": "agent-flow",
   "displayName": "Agent 协作透视",
   "version": "1.0.0",
-  "description": "Read-only timeline of native sub-agent tasks, child sessions, and result handoffs in local MiniMax Code conversations.",
+  "description": "Import plugin-recorded Hook events to inspect native sub-agent and task timing without reading Host session files.",
   "author": "Huixin615",
   "icon": "icon.png",
   "category": "Code",
-  "exampleQueries": ["打开 Agent 协作透视", "查看这次任务的子 Agent 协作过程"],
+  "exampleQueries": ["打开 Agent 协作透视", "查看插件记录的 task 与子 Agent 时间事件"],
   "apps": [],
   "mcpServers": [],
-  "skills": []
+  "skills": [],
+  "hooks": ["hooks/hooks.json"]
 }
